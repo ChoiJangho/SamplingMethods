@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from main import TwoGaussiansMixture, UnivariateSampling
+from univariate import TwoGaussiansMixture, UnivariateSampling
 
 
 target_distribution = TwoGaussiansMixture(

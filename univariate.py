@@ -52,6 +52,7 @@ class ProposalGaussian(ProposalDistribution):
     def sample_next(self, z_current):
         return np.random.normal(z_current, self._sigma)
 
+
 class Gaussian(UnivariateDistribution):
     def __init__(self, mu, sigma):
         self._mu = mu
