@@ -152,15 +152,18 @@ class UnivariateSampling:
 
     class MetropolisHastingsAnimation:
         def __init__(self, fig, z_initial, step_to_end,
-                target, proposal, record):
+                target, proposal, record, interval=500):
             self._target = target
             self._proposal = proposal
 
             self.fig = fig
             self._gs = fig.add_gridspec(1, 3)
             self._ax_main = fig.add_subplot(self._gs[0, 0:2])
+            self._ax_main.set_ylim([-0.05, 1.])
             self._ax_status = fig.add_subplot(self._gs[0, 2])
             self._ax_status.set_axis_off()
+            self._status_text = self._ax_status.text(0, 0.8, "Initialize z_0",
+                fontsize=12, color='k')
             self._samples = np.arange(-5, 5, 0.1)
             densities = self._target.get_density(self._samples)
             self._plot_target, = self._ax_main.plot(self._samples, densities,
@@ -169,7 +172,13 @@ class UnivariateSampling:
                 linewidth=2, color='r', label='Proposal Distribution')
             self._plot_z_indicator_point, = self._ax_main.plot([], [], 'o',
                 color='k', label='sequence')
+            self._plot_z_candidate_indicator, = self._ax_main.plot([], [], 'o',
+                color='r', label='new candidate')
+            self._plot_u_indicator, = self._ax_main.plot([], [], 'o',
+                color='b', label='u')
             plt.setp(self._plot_z_indicator_point, markersize=4)
+            plt.setp(self._plot_z_candidate_indicator, markersize=4)
+            plt.setp(self._plot_u_indicator, markersize=2)
             self._ax_main.legend()
             self._initialized = False
             self._new_candidate_appeared = False
@@ -179,7 +188,7 @@ class UnivariateSampling:
             self._step = 0
 
             self.ani = animation.FuncAnimation(
-                self.fig, self.update, interval=500, repeat=False)
+                self.fig, self.update, interval=interval, repeat=False)
             if record:
                 Writer = animation.writers['ffmpeg']
                 writer = Writer(fps=15, metadata=dict(artist='Me'),
@@ -214,34 +223,58 @@ class UnivariateSampling:
                     self._sequence[0], 0
                 )
                 self._initialized = True
-                return self._plot_z_indicator_point, \
-                    self._plot_proposal, self._z_indicator_line,
+                return self.objects
 
             if self._step == self._step_to_end:
+                print("finished")
                 self.ani.event_source.stop()
+
             z = self._sequence[self._step]
             self._plot_proposal.set_data(
                 self._samples.tolist(),
                 self._proposal.get_density(self._samples, z).tolist())
+            self._z_indicator_line.set_paths(np.array([
+                [[z, 0],[z, self._proposal.get_density(z, z)]]
+            ]))
 
-            y_max = self._proposal.get_density(z, z)
-            vline_data = np.zeros((1, 2, 2))
-            vline_data[0, 0, 1] = 0
-            vline_data[0, 1, 1] = y_max
-            vline_data[0, 0, 0] = z
-            vline_data[0, 1, 0] = z
-            self._z_indicator_line.set_paths(vline_data)
-            z_candidate = self._proposal.sample_next(z)
+            if not self._new_candidate_appeared:
+                self._z_candidate = self._proposal.sample_next(z)
+
+                self._plot_z_candidate_indicator.set_data(self._z_candidate, 0)
+                self._plot_u_indicator.set_data([], [])
+                self._new_candidate_appeared = True
+                self._status_text.set_text("Draw candidate for z_%d"
+                                           % self._step)
+                return self.objects
+
             u = np.random.uniform()
-            self._sequence[self._step + 1] = z_candidate \
-                if u < acceptance_thershold(z, z_candidate) else z
+            threshold = acceptance_thershold(z, self._z_candidate)
+            if u < threshold:
+                self._sequence[self._step + 1] = self._z_candidate
+                self._status_text.set_text(
+                    "Accept and update as new state\n(u: %.2f  A: %.2f)"
+                    % (u, threshold))
+            else:
+                self._sequence[self._step + 1] = z
+                self._status_text.set_text(
+                    "Reject and keep current state\n(u: %.2f  A: %.2f)"
+                    % (u, threshold))
+
+            self._plot_u_indicator.set_data(self._z_candidate, u)
+            self._plot_z_candidate_indicator.set_data([], [])
             self._plot_z_indicator_point.set_data(
-                self._sequence[0:self._step + 1].tolist(),
-                np.zeros(self._step + 1).tolist()
+                self._sequence[0:self._step + 2].tolist(),
+                np.zeros(self._step + 2).tolist()
             )
 
             self._step += 1
-            return self._plot_z_indicator_point, \
+            self._new_candidate_appeared = False
+            return self.objects
+
+        @property
+        def objects(self):
+            return self._plot_z_indicator_point, self._status_text, \
+                self._plot_z_candidate_indicator, self._plot_u_indicator, \
                 self._plot_proposal, self._z_indicator_line,
 
     def demonstrate_metropolis_hastings(self,
@@ -251,5 +284,6 @@ class UnivariateSampling:
 
         animation_mh = self.MetropolisHastingsAnimation(
             fig, z_initial, step_to_end, self._target, self._proposal, record)
+
 
 

@@ -10,4 +10,4 @@ sampling_handler = UnivariateSampling(
     target_distribution=target_distribution,
     proposal_distribution=proposal_distribution)
 
-sampling_handler.demonstrate_metropolis_hastings(z_initial=0., step_to_end=100)
+sampling_handler.demonstrate_metropolis_hastings(z_initial=0., step_to_end=20)
